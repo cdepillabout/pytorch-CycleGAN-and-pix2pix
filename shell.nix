@@ -63,12 +63,76 @@ let
     ];
   };
 
-  pyWithPytorch = python3.withPackages (ps: with ps; [
+  pyWithPytorch = (python3.withPackages (ps: with ps; [
     dominate
+    pip
     pytorch
     torchvision
-    visdom
-  ]);
+    virtualenv
+    #visdom
+
+    # visdom deps
+    pillow
+    pyzmq
+    numpy
+    scipy
+    requests
+    torchfile
+    tornado
+    websocket_client
+  ]));
 in
 
-pyWithPytorch.env
+# pyWithPytorch.env.overrideAttrs (oldAttrs: {
+#   paths = oldAttrs.paths ++ [
+#     taglib
+#     openssl
+#     git
+#     libxml2
+#     libxslt
+#     libzip
+#     stdenv
+#     zlib
+#   ];
+
+# })
+
+mkShell {
+  name = "my-env";
+  inputsFrom = [
+    pyWithPytorch.env
+    taglib
+    openssl
+    git
+    libxml2
+    libxslt
+    libzip
+    stdenv
+    zlib
+  ];
+  shellHook = ''
+    # Need to set the source date epoch to 1980 because python's zip thing is terrible?
+    export SOURCE_DATE_EPOCH=315532800
+
+    # If the .env virtualenv does not exist, then create it.
+    if [ ! -d ".env" ]; then
+      echo "Creating virtualenv..."
+      echo
+      virtualenv .env
+      echo
+    fi
+
+    # Make sure to always activate the virtualenv.
+    source .env/bin/activate
+
+    # Check to make sure visdom is installed, and if not, then install it.
+    # Note that visdom can't be installed through nix easily because the
+    # visdom server downloads files and puts them in its path at runtime.
+    # This frustrates me to no end.
+    if ! pip show visdom >/dev/null ; then
+      echo "Installing visdom..."
+      echo
+      pip install 'visdom>=0.1.8.3'
+    fi
+  '';
+}
